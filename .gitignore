@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+results_v2.json
+*.pdf
+table_v2.md
+stats.txt
+*.log
