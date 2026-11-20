@@ -49,7 +49,7 @@ fig.tight_layout(); fig.savefig("fig2_target_share.pdf"); plt.close(fig)
 if "rho_sweep" in R:
     fig, axs = plt.subplots(1, 2, figsize=(6.8, 2.5))
     for ax, key, xs, xl in [(axs[0], "rho_sweep", ["0.6", "0.7", "0.8", "0.9"], "utilization"),
-                            (axs[1], "n_sweep", ["10", "20", "40"], "number of devices")]:
+                            (axs[1], "n_sweep", ["20", "40", "80"], "number of devices")]:
         for p in ("jsq", "pow2", "plain", "aug", "ens_dev"):
             c, ls = STY[p]
             m = [ms(R[key][x][f"{p}|spoof0.5"]["miss"])[0] for x in xs]
