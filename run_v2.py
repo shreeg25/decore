@@ -5,8 +5,8 @@ python run_v2.py --quick    # ~2 min smoke test, tiny sample, no sweeps
 Run it from a normal terminal (not a call that returns before it finishes).
 
 Regime: deadline D=2 slots, primary load 0.8 (at D=4 the non-learned rules barely react to spoofing, so there is nothing to herd).
-Note: as in v1, training observations lag evaluation observations by one slot (train uses q_prev); kept so the
-plain policy is identical to v1.
+Training observations now carry the same information as evaluation observations (lag=0). v1 trained on a
+one-slot-older backlog than it was evaluated on (lag=1), which broke the learned policies (43-90% clean miss).
 """
 import argparse, json, time
 import numpy as np
@@ -44,7 +44,7 @@ def _aug(N, rho, seed, steps, iters, p_aug=0.5, emax=1.0):
     for _ in range(steps):
         active, size, tx = draw_slot(env, rng)
         a = expert_action(env, tx, q, rng)
-        seen = q_prev / env.cap
+        seen = q / env.cap          # same information the policy has at evaluation time (no lag)
         if rng.random() < p_aug:
             kind = "spoof" if rng.random() < 0.5 else "noise"
             seen = perturb(seen, kind, rng.uniform(0, emax), int(rng.integers(M)), rng)
@@ -163,7 +163,7 @@ def main():
         res["rho_sweep"][str(rho)] = r; res["gate"][f"rho{rho}"] = m; save()
     res["rho_sweep"]["0.8"] = {k: v for k, v in prim.items()
                                if k.split("|")[1] in [c[0] for c in conds_small] and k.split("|")[0] in sweep_pols}
-    for n in [10, 40]:
+    for n in [40, 80]:
         r, m, *_ = setting(n, 0.8, 8, 10, conds_small, 400, steps, iters, a.jobs, only=sweep_pols, tag="N-sweep")
         res["n_sweep"][str(n)] = r; res["gate"][f"N{n}"] = m; save()
     res["n_sweep"]["20"] = res["rho_sweep"]["0.8"]
