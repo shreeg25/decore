@@ -66,7 +66,7 @@ def serve(env, active, size, tx, act, q, rng):
     return miss, n, np.maximum(0.0, new_q - cap)
 
 
-def train_policy(N, rho, seed, steps=4000, iters=150):
+def train_policy(N, rho, seed, steps=4000, iters=150, lag=0):
     env = Env(N, rho)
     rng = np.random.default_rng(seed)
     q = np.zeros(M); q_prev = q.copy()
@@ -74,7 +74,7 @@ def train_policy(N, rho, seed, steps=4000, iters=150):
     for _ in range(steps):
         active, size, tx = draw_slot(env, rng)
         a = expert_action(env, tx, q, rng)
-        X.append(obs_of(env, size, tx, q_prev / env.cap)[active]); Y.append(a[active])
+        X.append(obs_of(env, size, tx, (q_prev if lag else q) / env.cap)[active]); Y.append(a[active])
         _, _, q_new = serve(env, active, size, tx, a, q, rng)
         q_prev, q = q, q_new
     clf = make_pipeline(StandardScaler(),
