@@ -77,9 +77,9 @@ def n_params(m):
     return int(sum(a.size for a in c.coefs_) + sum(b.size for b in c.intercepts_))
 
 
-def make_pols(plain, aug, K=5):
+def make_pols(plain, aug, K=5, extra=False):
     n, na = len(plain), len(aug)
-    return {
+    p = {
         "random": lambda s: Policy([], "random"),
         "jsq": lambda s: Policy([], "jsq"),
         "pow2": lambda s: Policy([], "pow2"),
@@ -89,6 +89,9 @@ def make_pols(plain, aug, K=5):
         "ens_slot": lambda s: Policy([plain[(s + j) % n] for j in range(K)], "ensemble"),
         "ens_dev": lambda s: Policy([plain[(s + j) % n] for j in range(K)], "ensemble_dev"),
     }
+    if extra:   # per-device draw over perturbation-trained models
+        p["aug_dev"] = lambda s: Policy([aug[(s + j) % na] for j in range(K)], "ensemble_dev")
+    return p
 
 
 def run_cond(pols, env, conds, seeds, slots):
@@ -101,7 +104,7 @@ def run_cond(pols, env, conds, seeds, slots):
     return out
 
 
-def setting(N, rho, n_models, n_seeds, conds, slots, steps, iters, jobs, only=None, tag=""):
+def setting(N, rho, n_models, n_seeds, conds, slots, steps, iters, jobs, only=None, tag="", extra=False):
     t = time.time()
     plain = Parallel(n_jobs=jobs)(delayed(_plain)(N, rho, s, steps, iters) for s in range(n_models))
     aug = Parallel(n_jobs=jobs)(delayed(_aug)(N, rho, 1000 + s, steps, iters) for s in range(n_models))
@@ -114,7 +117,7 @@ def setting(N, rho, n_models, n_seeds, conds, slots, steps, iters, jobs, only=No
     log(f"{tag} gate: expert val miss {expert_val:.1f}, threshold {thr:.1f}; PASSED plain {npp}/{n_models}, aug {npa}/{n_models}")
     if min(npp, npa) < MIN_KEEP:
         log(f"{tag} WARNING: fewer than {MIN_KEEP} models passed the gate, kept the best {MIN_KEEP} anyway - train longer (steps/iters) before trusting learned-policy numbers")
-    pols = make_pols(gp, ga)
+    pols = make_pols(gp, ga, extra=extra)
     if only:
         pols = {k: v for k, v in pols.items() if k in only}
     res = run_cond(pols, env, conds, list(range(n_seeds)), slots)
@@ -128,8 +131,11 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--quick", action="store_true")
     ap.add_argument("--jobs", type=int, default=-1)
-    ap.add_argument("--out", default="results_v2.json")
+    ap.add_argument("--extra", action="store_true", help="adaptive attacker + aug_dev, primary and N=80 only")
+    ap.add_argument("--out", default=None)
     a = ap.parse_args()
+    if a.out is None:
+        a.out = "results_extra.json" if a.extra else "results_v2.json"
 
     if a.quick:
         n_models, n_seeds, slots, steps, iters = 6, 4, 200, 1500, 60
@@ -139,6 +145,19 @@ def main():
                  [(f"{k}{e}", k, e, 1) for k in ("noise", "spoof") for e in EPS]
     conds_small = [("clean", "none", 0.0, 1), ("noise0.5", "noise", 0.5, 1), ("spoof0.5", "spoof", 0.5, 1)]
     sweep_pols = ("random", "jsq", "pow2", "expert", "plain", "aug", "ens_dev")
+
+    if a.extra:
+        BUD = [0.5, 1.0, 2.0]
+        conds_x = [("clean", "none", 0.0, 1)] + [(f"{k}{e}", k, e, 1) for k in ("noise", "spoof", "adv") for e in BUD]
+        res = {"eps": BUD, "D": D_NEW, "gate": {}}
+        r1, m1, *_ = setting(20, 0.8, n_models, n_seeds, conds_x, slots, steps, iters, a.jobs, tag="extra-primary", extra=True)
+        res["primary"] = r1; res["gate"]["primary"] = m1
+        json.dump(res, open(a.out, "w")); log("extra primary done")
+        if not a.quick:
+            r2, m2, *_ = setting(80, 0.8, 8, 10, conds_x, 400, steps, iters, a.jobs, tag="extra-N80", extra=True)
+            res["n80"] = r2; res["gate"]["N80"] = m2
+            json.dump(res, open(a.out, "w"))
+        log("EXTRA DONE"); return
 
     res = {"eps": EPS, "D": D_NEW, "gate": {}}
 
