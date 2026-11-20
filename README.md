@@ -21,6 +21,8 @@ Check the log line `gate: ... PASSED plain x/30, aug y/30` first. If either is u
 undertrained: raise steps/iters in `main()` (e.g. 12000 / 300) and rerun before reading learned-policy results.
 
 ## Notes
-- Training observations lag evaluation observations by one slot (inherited from v1; keeps the plain policy identical).
+- v1 trained the policy on a backlog report one slot older than the one it saw at evaluation (`lag=1`), which gave
+  43-90% clean miss at 80% load. Fixed: `train_policy(..., lag=0)` is now the default, and the perturbation-trained
+  policy uses the same convention. Pass `lag=1` to `train_policy` to reproduce the v1 numbers in `legacy_v1/`.
 - Latencies are desktop-CPU, single-decision timings, useful only as relative numbers. Model memory is K x params.
 - For the double-blind submission, do not link this repository.
