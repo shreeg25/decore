@@ -131,6 +131,8 @@ Policy._rule = _rule
 
 def perturb(seen, kind, eps, target, rng):
     l = seen.copy()
+    if kind == "adv":        # adaptive: whichever server the broadcast says is heaviest is made to look lightest
+        target = int(np.argmax(seen)); kind = "spoof"
     if kind == "spoof":      # target looks lighter, others heavier; L-inf = eps
         l = l + eps
         l[target] = max(0.0, seen[target] - eps)
